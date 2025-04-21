@@ -26,7 +26,7 @@ Cryptus currently supports the following cryptographic algorithms:
 To install Cryptus, run:
 
 ```bash
-go get github.com/ravoni4devs/libcryptus/v1@latest
+go get github.com/ravoni4devs/libcryptus
 ```
 
 ## Usage
@@ -39,7 +39,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
-	"github.com/ravoni4devs/libcryptus/v1"
+	"github.com/ravoni4devs/libcryptus"
 )
 
 func main() {
@@ -71,7 +71,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/ravoni4devs/libcryptus/v1"
+	"github.com/ravoni4devs/libcryptus"
 )
 
 func main() {
