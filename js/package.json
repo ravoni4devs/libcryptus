@@ -1,14 +1,16 @@
 {
     "name": "@ravoni4devs/libcryptus",
-    "version": "0.0.8",
+    "version": "0.0.9",
     "description": "A lightweight and efficient library providing essential cryptographic utilities",
-    "main": "dist/libcryptus.js",
+    "main": "dist/cryptus.js",
+    "types": "dist/cryptus.d.ts",
     "directories": {
         "test": "test"
     },
     "scripts": {
-        "build": "npx rollup --bundleConfigAsCjs --makeAbsoluteExternalsRelative -c",
+        "build": "npx rollup --bundleConfigAsCjs --makeAbsoluteExternalsRelative -c && npm run definitions",
         "bundle": "cat argon2-bundled.min.js dist/libcryptus.js > dist/bundle.min.js",
+        "definitions": "npx tsc",
         "test": "jest",
         "deploy": "npm publish --access public"
     },
@@ -30,6 +32,7 @@
         "jest-environment-jsdom": "^29.7.0",
         "jsdom": "^24.0.0",
         "rollup": "^4.18.1",
+        "typescript": "^5.8.3",
         "util": "^0.12.5"
     },
     "dependencies": {
@@ -38,6 +41,12 @@
     "publishConfig": {
         "access": "public"
     },
+    "keywords": [
+        "cryptography",
+        "encryption",
+        "decryption",
+        "hashing"
+    ],
     "files": [
         "dist"
     ]

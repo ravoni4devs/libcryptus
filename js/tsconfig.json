@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "target": "esnext",
+        "module": "esnext",
+        "outDir": "dist",
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "allowJs": true,
+        "checkJs": true,
+        "moduleResolution": "node",
+        "typeRoots": [
+            "./types"
+        ],
+    },
+    "include": ["cryptus/cryptus.js", "types/**/*"],
+    "exclude": ["node_modules"]
+}

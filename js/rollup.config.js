@@ -13,7 +13,7 @@ export default {
       'argon2-browser': 'argon2'
     }
   }, {
-    file: 'dist/libcryptus.js',
+    file: 'dist/cryptus.js',
     format: 'es',
     name: 'Cryptus'
   }],
