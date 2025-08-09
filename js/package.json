@@ -9,7 +9,7 @@
     },
     "scripts": {
         "build": "npx rollup --bundleConfigAsCjs --makeAbsoluteExternalsRelative -c && npm run definitions",
-        "bundle": "cat argon2-bundled.min.js dist/libcryptus.js > dist/bundle.min.js",
+        "bundle": "cat argon2-bundled.min.js dist/libcryptus-cjs.js > dist/bundle.min.js",
         "definitions": "npx tsc",
         "test": "jest",
         "deploy": "npm publish --access public"
