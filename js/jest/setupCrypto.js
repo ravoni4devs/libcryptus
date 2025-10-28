@@ -1,25 +1,19 @@
-// const crypto = require('crypto').webcrypto
-// const { subtle, getRandomValues } = crypto
-// const { importKey, exportKey, deriveKey } = subtle
-const util = require('util');
-const { TextEncoder, TextDecoder } = util;
-const { Crypto } = require('@peculiar/webcrypto');
+const { TextEncoder, TextDecoder } = require('util');
+const { webcrypto } = require('crypto');
 
 global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder;
 
-const cryptoModule = new Crypto();
-global.crypto = cryptoModule;
-Object.defineProperty(window, 'crypto', {
-  get(){
-    return cryptoModule
-  }
+global.crypto = webcrypto;
+
+global.btoa = (str) => Buffer.from(str, 'binary').toString('base64');
+global.atob = (b64) => Buffer.from(b64, 'base64').toString('binary');
+
+global.window = {
+  crypto: webcrypto,
+};
+
+Object.defineProperty(global, 'crypto', {
+  value: webcrypto,
+  writable: false,
 });
-// global.crypto = {
-//   subtle: {
-//     importKey,
-//     exportKey,
-//     deriveKey
-//   },
-//   getRandomValues
-// }

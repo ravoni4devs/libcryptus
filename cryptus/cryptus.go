@@ -4,6 +4,8 @@ import (
 	crand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -24,11 +26,20 @@ func (c *cryptus) RandomSixDigits() string {
 	return strconv.Itoa(code)
 }
 
+func (c *cryptus) GenerateNonceHex(size int) string {
+	nonceBytes := make([]byte, size)
+	_, err := crand.Read(nonceBytes)
+	if err != nil {
+		return ""
+	}
+	return hex.EncodeToString(nonceBytes)
+}
+
 func (c *cryptus) GenerateNonce(size int) ([]byte, error) {
 	nonceBytes := make([]byte, size)
 	_, err := crand.Read(nonceBytes)
 	if err != nil {
-		return nonceBytes, fmt.Errorf("could not generate nonce")
+		return nonceBytes, errors.New("could not generate nonce")
 	}
 
 	res := base64.URLEncoding.EncodeToString(nonceBytes)

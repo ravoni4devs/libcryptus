@@ -52,7 +52,7 @@ const cryptus = new Cryptus();
 const passwordHex = await cryptus.pbkdf2({
   plainText: plainText,
   salt: '123456',
-  length: 128  // 128 = 32 bits = max length supported to aes-gcm
+  length: 128
 })
 console.log(passwordHex)  // 1498cccb3cab5e895d6912d78aef6ab2
 
@@ -78,7 +78,7 @@ console.log(decryptedText)
   <div>Generated Nonce: <span id="nonce"></span></div>
   <script>
     var cryptus = new Cryptus();
-    var nonce = cryptus.generateNonce(16);
+    var nonce = cryptus.generateNonce({ length: 16, hex: true });
     document.querySelector('#nonce').innerHTML = nonce;
   </script>
 </body>

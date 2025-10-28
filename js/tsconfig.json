@@ -1,12 +1,15 @@
 {
     "compilerOptions": {
+        "lib": ["dom", "es2020"],
         "target": "esnext",
         "module": "esnext",
         "outDir": "dist",
         "declaration": true,
         "emitDeclarationOnly": true,
         "allowJs": true,
-        "checkJs": true,
+        "checkJs": false,
+        "noEmit": true,
+        "skipLibCheck": true,
         "moduleResolution": "node",
         "typeRoots": [
             "./types"

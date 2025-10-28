@@ -8,6 +8,7 @@ type Cryptus interface {
 	RandomSixDigits() string
 	GenerateNonce(size int) ([]byte, error)
 	GenerateNonceString(size int) string
+	GenerateNonceHex(size int) string
 	Pbkdf2(plainText, salt string, extra ...KdfConfig) string
 	Argon2(plainText, salt string, extra ...KdfConfig) string
 	EncryptAes(plainText, secret, nonce string) (string, error)

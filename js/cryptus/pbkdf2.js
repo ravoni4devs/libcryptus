@@ -1,28 +1,53 @@
-import helpers from './helpers'
-
-const crypto = window.crypto
+import helpers from './helpers';
 
 const pbkdf2Algo = {
-  name: 'PBKDF2'
-}
+  name: 'PBKDF2',
+};
 
-// module.exports = {
 export default {
-  // salt = simple string
-  async deriveKey({plainText, salt, length = 256}) {
-    const key = await crypto.subtle.importKey('raw', helpers.textToArrayBuffer(plainText), pbkdf2Algo, false, ['deriveKey'])
+  async deriveKey({ plainText = '', salt = '', iterations = 10000, length = 256 } = {}) {
+    const cryptoInstance = helpers.getCrypto();
+    const key = await cryptoInstance.subtle.importKey(
+      'raw',
+      helpers.textToArrayBuffer(plainText),
+      pbkdf2Algo,
+      false,
+      ['deriveKey']
+    );
     const params = {
       name: pbkdf2Algo.name,
       salt: helpers.textToArrayBuffer(salt),
-      iterations: 10000,
-      hash: 'SHA-256'
-    }
+      iterations,
+      hash: 'SHA-256',
+    };
     const aesAlgo = {
       name: 'AES-GCM',
-      length  // desired key parameters (32 bytes = 256 bits)
-    }
-    const result = await crypto.subtle.deriveKey(params, key, aesAlgo, true, ['encrypt', 'decrypt'])
-    const exported = await crypto.subtle.exportKey('raw', result)
-    return helpers.arrayBufferToHex(new Uint8Array(exported))
-  }
-}
+      length,
+    };
+    const result = await cryptoInstance.subtle.deriveKey(params, key, aesAlgo, true, [
+      'encrypt',
+      'decrypt',
+    ]);
+    const exported = await cryptoInstance.subtle.exportKey('raw', result);
+    return helpers.arrayBufferToHex(exported);
+  },
+
+  async deriveBits({ plainText = '', salt = '', length = 256, iterations = 10000 } = {}) {
+    const cryptoInstance = helpers.getCrypto();
+    const key = await cryptoInstance.subtle.importKey(
+      'raw',
+      helpers.textToArrayBuffer(plainText),
+      pbkdf2Algo,
+      false,
+      ['deriveBits']
+    );
+    const params = {
+      name: pbkdf2Algo.name,
+      salt: helpers.textToArrayBuffer(salt),
+      iterations,
+      hash: 'SHA-256',
+    };
+    const derived = await cryptoInstance.subtle.deriveBits(params, key, length);
+    return helpers.arrayBufferToHex(derived);
+  },
+};

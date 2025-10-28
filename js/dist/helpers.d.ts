@@ -12,6 +12,7 @@ declare namespace _default {
     export { strToUtf16Bytes };
     export { strToHex };
     export { randomIv };
+    export { getCrypto };
 }
 export default _default;
 declare function arrayBufferToBase64(buf: any): string;
@@ -27,3 +28,4 @@ declare function base64ToStr(b64: any): string;
 declare function strToUtf16Bytes(str: any): number[];
 declare function strToHex(str: any): string;
 declare function randomIv(size: any): string;
+declare function getCrypto(): Crypto;
