@@ -23,13 +23,37 @@ Cryptus currently supports the following cryptographic algorithms:
 
 ## Installation
 
-To install Cryptus, run:
+### CLI (Optional)
+
+```bash
+go install github.com/ravoni4devs/libcryptus/cmd/cryptus@latest
+```
+
+### Lib (for Go projects)
 
 ```bash
 go get github.com/ravoni4devs/libcryptus
 ```
 
 ## Usage
+
+### CLI
+
+```bash
+# Encrypt string
+cryptus encrypt -i "hello world"
+
+# Encrypt file
+cryptus encrypt --input wallet.txt
+
+# Decrypt string
+cryptus decrypt -i "ab12cd..." -nonce mynonce
+
+# Decrypt file (auto load wallet.txt.nonce)
+cryptus decrypt -i wallet.txt.enc
+```
+
+### Go Lib
 
 Here’s a simple AES encryption example:
 
