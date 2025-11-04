@@ -86,6 +86,29 @@ cryptus decrypt -file wallet.txt.enc
 
 ## 💻 Go Library Example
 
+### Argon2 Password example
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/ravoni4devs/libcryptus/cryptus"
+)
+
+func main() {
+    c := cryptus.New()
+    password := "S3cure-P@ssw0rd!"
+    salt, _ := c.GenerateNonceHex(16)  // 16 => 32 hex chars: 9314d292a6b30ae20dd2736dfb50da80
+
+    // phc: $argon2id$v=19$m=65536,t=3,p=1$kxTSkqazCuIN0nNt+1DagA$ZiDzSiQkYC0jrTynfrwnvFIZ81nR+2roAzs14SnZ96U
+    phc := c.Argon2(password, salt)
+    if !c.CompareArgon2(password, phc) {
+        fmt.Println("passwords mismatch")
+    }
+}
+```
+
 ### AES Encryption Example
 
 ```go

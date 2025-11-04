@@ -13,6 +13,8 @@ type Cryptus interface {
 
 	Argon2Hex(plain, salt []byte, extra ...KdfConfig) (string, error)
 	CompareHashHex(aHex, bHex string) bool
+	Argon2(plain, salt string, extra ...KdfConfig) (string, error)
+	CompareArgon2(password, encoded string) bool
 
 	EncryptAESGCMHex(plainText, keyHex, nonceHex string) (string, error)
 	DecryptAESGCMHex(cipherHex, keyHex, nonceHex string) (string, error)
