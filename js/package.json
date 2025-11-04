@@ -1,6 +1,6 @@
 {
     "name": "@ravoni4devs/libcryptus",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "description": "A lightweight and efficient library providing essential cryptographic utilities",
     "main": "dist/cryptus.js",
     "types": "dist/cryptus.d.ts",

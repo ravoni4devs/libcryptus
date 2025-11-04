@@ -1,71 +1,52 @@
-import helpers from './helpers';
+const helpers = require("./helpers");
 
-const defaultKeySize = 2048;
+const DEFAULT_KEY_SIZE = 2048;
 
-const rsaAlgo = {
-  name: 'RSA-OAEP',
-  modulusLength: defaultKeySize,
-  publicExponent: new Uint8Array([1, 0, 1]),
-  extractable: true,
-  hash: {
-    name: 'SHA-256',
-  },
-};
-
-export default class Rsa {
-  async generateKeyPair(args = {}) {
-    const cryptoInstance = helpers.getCrypto();
-    const algo = { ...rsaAlgo, modulusLength: args.size || defaultKeySize };
-    const keyPair = await cryptoInstance.subtle.generateKey(algo, true, ['encrypt', 'decrypt']);
-    const spki = await cryptoInstance.subtle.exportKey('spki', keyPair.publicKey);
-    const pkcs8 = await cryptoInstance.subtle.exportKey('pkcs8', keyPair.privateKey);
-    const publicKey = helpers.binaryToPem(spki, 'RSA PUBLIC KEY');
-    const privateKey = helpers.binaryToPem(pkcs8, 'RSA PRIVATE KEY');
-    return {
-      publicKey: {
-        pem: publicKey,
-        base64: helpers.strToBase64(publicKey),
-      },
-      privateKey: {
-        pem: privateKey,
-        base64: helpers.strToBase64(privateKey),
-      },
-    };
-  }
-
-  async encrypt(args) {
-    const cryptoInstance = helpers.getCrypto();
-    const algo = { ...rsaAlgo, modulusLength: args.size || defaultKeySize };
-    const key = await cryptoInstance.subtle.importKey(
-      'spki',
-      helpers.pemToBinary(args.publicKey),
-      algo,
-      false,
-      ['encrypt']
-    );
-    const encrypted = await cryptoInstance.subtle.encrypt(
-      algo,
-      key,
-      helpers.textToArrayBuffer(args.plainText)
-    );
-    return helpers.arrayBufferToBase64(encrypted);
-  }
-
-  async decrypt(args) {
-    const cryptoInstance = helpers.getCrypto();
-    const algo = { ...rsaAlgo, modulusLength: args.size || defaultKeySize };
-    const key = await cryptoInstance.subtle.importKey(
-      'pkcs8',
-      helpers.pemToBinary(args.privateKey),
-      algo,
-      false,
-      ['decrypt']
-    );
-    const decoded = await cryptoInstance.subtle.decrypt(
-      algo,
-      key,
-      helpers.base64ToArrayBuffer(args.cipherText)
-    );
-    return helpers.arrayBufferToText(decoded);
-  }
+async function generateRsaKeyPair(size = DEFAULT_KEY_SIZE) {
+  const crypto = helpers.getCrypto();
+  const algo = {
+    name: "RSA-OAEP",
+    modulusLength: size,
+    publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+    hash: "SHA-256",
+  };
+  const kp = await crypto.subtle.generateKey(algo, true, ["encrypt", "decrypt"]);
+  const spki = await crypto.subtle.exportKey("spki", kp.publicKey);
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", kp.privateKey);
+  const publicKeyPEM = helpers.binaryToPem(spki, "PUBLIC KEY");
+  const privateKeyPEM = helpers.binaryToPem(pkcs8, "PRIVATE KEY");
+  return { privateKey: privateKeyPEM, publicKey: publicKeyPEM };
 }
+
+async function importPublicKeyPEM(pem) {
+  const crypto = helpers.getCrypto();
+  const der = helpers.pemToBinary(pem);
+  return crypto.subtle.importKey("spki", der, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["encrypt"]);
+}
+
+async function importPrivateKeyPEM(pem) {
+  const crypto = helpers.getCrypto();
+  const der = helpers.pemToBinary(pem);
+  return crypto.subtle.importKey("pkcs8", der, { name: "RSA-OAEP", hash: "SHA-256" }, false, ["decrypt"]);
+}
+
+async function encryptRsaOAEPB64(plainText, publicKeyPEM) {
+  const crypto = helpers.getCrypto();
+  const pub = await importPublicKeyPEM(publicKeyPEM);
+  const ct = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, pub, helpers.textToArrayBuffer(plainText));
+  return helpers.b64urlFromBytes(new Uint8Array(ct));
+}
+
+async function decryptRsaOAEPB64(cipherB64, privateKeyPEM) {
+  const crypto = helpers.getCrypto();
+  const priv = await importPrivateKeyPEM(privateKeyPEM);
+  const ct = helpers.bytesFromB64url(cipherB64);
+  const pt = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, priv, ct);
+  return helpers.arrayBufferToText(pt);
+}
+
+module.exports = {
+  generateRsaKeyPair,
+  encryptRsaOAEPB64,
+  decryptRsaOAEPB64,
+};

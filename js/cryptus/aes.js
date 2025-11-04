@@ -1,50 +1,34 @@
-import helpers from './helpers';
+const helpers = require("./helpers");
 
-const importKeyFromRaw = async (passwordHex) => {
-  try {
-    const cryptoInstance = helpers.getCrypto();
-    const keyData = helpers.hexToArrayBuffer(passwordHex);
-    const key = await cryptoInstance.subtle.importKey(
-      'raw', 
-      keyData, 
-      'AES-GCM', 
-      false, 
-      ['encrypt', 'decrypt']
-    );
-    return key;
-  } catch (err) {
-    throw new Error('Failed to import key from hash: ' + err.message);
+async function importAesKeyFromHex(passwordHex) {
+  const crypto = helpers.getCrypto();
+  const keyBytes = helpers.hexToArrayBuffer(passwordHex);
+  if (![16, 24, 32].includes(keyBytes.length)) {
+    throw new Error("AES key must be 16/24/32 bytes");
   }
-};
-
-class Aes {
-  async encrypt({ plainText, passwordHex, nonceHex }) {
-    if (nonceHex && nonceHex.length < 24) {
-      throw Error('Nonce '+nonceHex+ 'is too short')
-    }
-    const cryptoInstance = helpers.getCrypto();
-    const key = await importKeyFromRaw(passwordHex);
-    const algo = {
-      name: 'AES-GCM',
-      iv: helpers.hexToArrayBuffer(nonceHex),
-    };
-    const encrypted = await cryptoInstance.subtle.encrypt(
-      algo,
-      key,
-      helpers.textToArrayBuffer(plainText)
-    );
-    return helpers.arrayBufferToHex(encrypted);
-  }
-
-  async decrypt({ cipherText, passwordHex, nonceHex }) {
-    const cryptoInstance = helpers.getCrypto();
-    const key = await importKeyFromRaw(passwordHex);
-    const iv = helpers.hexToArrayBuffer(nonceHex);
-    const cipherBytes = helpers.hexToArrayBuffer(cipherText);
-    const algo = { name: 'AES-GCM', iv };
-    const decrypted = await cryptoInstance.subtle.decrypt(algo, key, cipherBytes);
-    return helpers.arrayBufferToText(decrypted);
-  }
+  return crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
-export default Aes;
+async function encryptAESGCMHex(plainText, passwordHex, nonceHex) {
+  const crypto = helpers.getCrypto();
+  const key = await importAesKeyFromHex(passwordHex);
+  const iv = helpers.hexToArrayBuffer(nonceHex);
+  if (iv.length !== 12) throw new Error("AES-GCM nonce must be 12 bytes");
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, helpers.textToArrayBuffer(plainText));
+  return helpers.arrayBufferToHex(ct);
+}
+
+async function decryptAESGCMHex(cipherHex, passwordHex, nonceHex) {
+  const crypto = helpers.getCrypto();
+  const key = await importAesKeyFromHex(passwordHex);
+  const iv = helpers.hexToArrayBuffer(nonceHex);
+  if (iv.length !== 12) throw new Error("AES-GCM nonce must be 12 bytes");
+  const ct = helpers.hexToArrayBuffer(cipherHex);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return helpers.arrayBufferToText(pt);
+}
+
+module.exports = {
+  encryptAESGCMHex,
+  decryptAESGCMHex,
+};

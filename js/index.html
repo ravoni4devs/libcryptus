@@ -14,17 +14,22 @@
   <link rel="icon" type="image/png" sizes="32x32" href="statics/icons/favicon-32x32.png">
   <link rel="icon" type="image/png" sizes="96x96" href="statics/icons/favicon-96x96.png">
   <link rel="icon" type="image/ico" href="statics/icons/favicon.ico">
-  <script src="bundle.js"></script>
+  <script src="dist/libcryptus-cjs.js"></script>
   <title></title>
 </head>
 
 <body>
-  <div>Nonce: <span id="nonce"></span></div>
+  <div>Generated Nonce: <span id="nonce"></span></div>
+  <div>PBKDF2: plainText=<b>strongpass</b> => hash=<span id="hash"></span></div>
   <script>
     var cryptus = new Cryptus();
-    var nonce = cryptus.generateNonce(16)
-    console.log('>> nonce=', nonce);
-    document.querySelector('#nonce').innerHTML = nonce;
+    cryptus.generateNonceHex(12).then(function (nonce) {
+      console.log('nonce:', nonce)
+      document.querySelector('#nonce').innerHTML = nonce;
+      cryptus.pbkdf2('strongpass', nonce).then(function (hash) {
+        document.querySelector('#hash').innerHTML = hash;
+      })
+    })
   </script>
 </body>
 

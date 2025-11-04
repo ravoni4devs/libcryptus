@@ -1,72 +1,92 @@
 # Cryptus
 
-**Cryptus** is a multi-language cryptography and hashing library designed to provide a simple
-and consistent interface for developers working with cryptographic operations across
-different programming languages.
+**Cryptus** is a lightweight, cross‑language cryptography library and CLI tool that provides a unified interface for encryption, decryption, key derivation, and hashing — both in Go and JavaScript.
 
-## Features
+---
 
-- **Encryption & Decryption**: Simplify data protection with straightforward functions.
-- **Key Derivation & Generation**: Generate strong keys with Argon2 and PBKDF2.
-- **Hashing & Secure Storage**: Hash passwords and securely store sensitive data.
-- **Modular Design**: Use only what you need to keep your project lean.
+## 🚀 Features
 
-## Supported Algorithms
+- **Symmetric Encryption:** AES‑GCM and ChaCha20‑Poly1305  
+- **Asymmetric Encryption:** RSA‑OAEP key generation and encryption  
+- **Key Derivation:** Argon2id and PBKDF2 (HMAC‑SHA256)  
+- **Hashing:** SHA‑256 with constant‑time comparison  
+- **Nonces & Random:** Built‑in utilities for secure random generation  
+- **CLI + Library:** Use directly in Go, Node.js, or browser environments
 
-Cryptus currently supports the following cryptographic algorithms:
+---
 
-- **RSA** – Asymmetric encryption and key generation  
-- **Argon2** – Memory-hard password hashing (Argon2id)  
-- **PBKDF2** – Password-based key derivation  
-- **AES** – Symmetric encryption (AES-256)  
-- **Sha256** – Cryptographic hash function producing 256-bit fixed-size output
+## 🔐 Supported Algorithms
 
-## Installation
+| Category | Algorithms |
+|-----------|-------------|
+| **Encryption** | AES‑GCM (256‑bit), ChaCha20‑Poly1305 |
+| **Key Derivation** | Argon2id (default), PBKDF2 (HMAC‑SHA256) |
+| **Hashing** | SHA‑256 |
+| **Asymmetric** | RSA‑OAEP (2048/4096 bits) |
 
-To install Cryptus, run:
+---
+
+## 📦 Installation
+
+### For JavaScript (Node or Browser)
 
 ```bash
 npm i @ravoni4devs/libcryptus
 ```
 
-To add Argon2 support:
+To add **Argon2** support in browsers:
 
-```sh
+```bash
 npm i argon2-browser
+```
 
-# Then add this script to your HTML
+Then include it in your HTML before using Cryptus:
+
+```html
 <script src="node_modules/argon2-browser/dist/argon2-bundled.js"></script>
 ```
 
-## Usage
+---
 
-### ES6 module
+## 🧠 Quick Usage (ESM)
 
-Here’s a simple AES encryption example:
+### AES‑GCM Example
 
 ```js
-import Cryptus from '@ravoni4devs/libcryptus'
+import Cryptus from '@ravoni4devs/libcryptus';
 
-const plainText = 'strongpass';
-const cryptus = new Cryptus();
-const passwordHex = await cryptus.pbkdf2({
-  plainText: plainText,
-  salt: '123456',
-  length: 128
-})
-console.log(passwordHex)  // 1498cccb3cab5e895d6912d78aef6ab2
+const c = new Cryptus();
 
-const nonceHex = helpers.strToHex('12345678');
-console.log(nonceHex)    // 3132333435363738
+// Derive a key using PBKDF2 (32 bytes → AES‑256)
+const keyHex = await c.pbkdf2('my‑password', 'mysalt', { iterations: 100000, length: 32 });
 
-const cipherText = await cryptus.encryptAes({plainText, nonceHex, passwordHex});
-console.log(cipherText)  // fd1ceaa8d7f03be768d410f07c017f3f7e62c8af6c9061cbaa0d
+// Generate a random 12‑byte nonce
+const nonceHex = await c.generateNonceHex(12);
 
-const decryptedText = await cryptus.decryptAes({cipherText, nonceHex, passwordHex});
-console.log(decryptedText)
+// Encrypt / Decrypt text using AES‑GCM
+const cipherHex = await c.encryptAESGCMHex('hello world', keyHex, nonceHex);
+const plainText = await c.decryptAESGCMHex(cipherHex, keyHex, nonceHex);
+
+console.log({ keyHex, nonceHex, cipherHex, plainText });
 ```
 
-### Common JS old fashion style
+### RSA‑OAEP Example
+
+```js
+import Cryptus from '@ravoni4devs/libcryptus';
+
+const c = new Cryptus();
+const { publicKey, privateKey } = await c.generateRsaKeyPair(2048);
+
+const encrypted = await c.encryptRsaOAEPB64('secret message', publicKey);
+const decrypted = await c.decryptRsaOAEPB64(encrypted, privateKey);
+
+console.log({ encrypted, decrypted });
+```
+
+---
+
+## 🧰 CommonJS / Browser Example
 
 ```html
 <!DOCTYPE html>
@@ -76,28 +96,18 @@ console.log(decryptedText)
 </head>
 <body>
   <div>Generated Nonce: <span id="nonce"></span></div>
+  <div>PBKDF2: plainText=<b>strongpass</b> => hash=<span id="hash"></span></div>
   <script>
     var cryptus = new Cryptus();
-    var nonce = cryptus.generateNonce({ length: 16, hex: true });
-    document.querySelector('#nonce').innerHTML = nonce;
+    cryptus.generateNonceHex(12).then(function (nonce) {
+      console.log('nonce:', nonce)
+      document.querySelector('#nonce').innerHTML = nonce;
+      cryptus.pbkdf2('strongpass', nonce).then(function (hash) {
+        document.querySelector('#hash').innerHTML = hash;
+      })
+    })
   </script>
 </body>
+</html>
 ```
 
-## Documentation
-
-More examples in `*.test.js` files.
-
-## Contributing
-
-1. Open an issue and describe your pain
-2. Fork the repo
-3. Create a new branch: git checkout -b feature/my-feature
-4. Commit your changes
-5. Push and open a PR
-
-Please follow the project’s coding style and include tests when possible.
-
-## License
-
-MIT License. See the [LICENSE](LICENSE) file for details.
