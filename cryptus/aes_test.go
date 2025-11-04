@@ -1,33 +1,29 @@
 package cryptus
 
-import (
-	"encoding/hex"
-	"fmt"
-	"testing"
-)
+import "testing"
 
-func TestEncryptAes(t *testing.T) {
-	crypto := New()
-	plainText := "strongpass"
-	passwordHex := crypto.Pbkdf2("123456", "123456")
-	nonceHex := hex.EncodeToString([]byte("12345678"))
-	cipherText, err := crypto.EncryptAes(plainText, passwordHex, nonceHex)
-	if err != nil {
-		fmt.Println(err)
-	}
-	assertEqual(t, passwordHex, "1498cccb3cab5e895d6912d78aef6ab2")
-	assertEqual(t, nonceHex, "3132333435363738")
-	assertEqual(t, cipherText, "fd1ceaa8d7f03be768d410f07c017f3f7e62c8af6c9061cbaa0d")
-}
+func TestAESGCM_EncryptDecrypt(t *testing.T) {
+	c := New()
 
-func TestDecryptAes(t *testing.T) {
-	crypto := New()
-	cipherText := "fd1ceaa8d7f03be768d410f07c017f3f7e62c8af6c9061cbaa0d"
-	passwordHex := crypto.Pbkdf2("123456", "123456")
-	nonceHex := hex.EncodeToString([]byte("12345678"))
-	plainText, err := crypto.DecryptAes(cipherText, passwordHex, nonceHex)
+	// Example:
+	// - AES keys 32 bytes (256 bits) in HEX
+	// - Nonce GCM 12 bytes in HEX
+	keyHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	nonceHex := "00112233445566778899aabb"
+
+	plain := "hello, aes-gcm!"
+
+	ctHex, err := c.EncryptAESGCMHex(plain, keyHex, nonceHex)
 	if err != nil {
-		fmt.Println(err)
+		t.Fatalf("EncryptAESGCMHex error: %v", err)
 	}
-	assertEqual(t, plainText, "strongpass")
+
+	pt, err := c.DecryptAESGCMHex(ctHex, keyHex, nonceHex)
+	if err != nil {
+		t.Fatalf("DecryptAESGCMHex error: %v", err)
+	}
+
+	if pt != plain {
+		t.Fatalf("decrypted text mismatch: got %q, want %q", pt, plain)
+	}
 }

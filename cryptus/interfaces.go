@@ -1,24 +1,26 @@
 package cryptus
 
-import (
-	"crypto/rsa"
-)
-
 type Cryptus interface {
 	RandomSixDigits() string
-	GenerateNonce(size int) ([]byte, error)
-	GenerateNonceString(size int) string
-	GenerateNonceHex(size int) string
+
+	GenerateNonceBytes(n int) ([]byte, error)
+	GenerateNonceHex(n int) (string, error)
+	GenerateNonceB64URL(n int) (string, error)
+
+	Sha256Hex(s string) string
+
 	Pbkdf2(plainText, salt string, extra ...KdfConfig) string
-	Argon2(plainText, salt string, extra ...KdfConfig) string
-	EncryptAes(plainText, secret, nonce string) (string, error)
-	DecryptAes(cipherText, secret, nonce string) (string, error)
-	EncryptChacha20(plainText, secret, nonce string) (string, error)
-	DecryptChacha20(cipherText, secret, nonce string) (string, error)
-	GenerateRsaKeyPair(size int) (string, string, error)
-	EncryptRsa(plainText, publicKey string) (string, error)
-	DecryptRsa(cipherText, privateKey string) (string, error)
-	ParseRSAPublicKeyFromPEM(publicKeyPEM string) (*rsa.PublicKey, error)
-	ParseRSAPrivateKeyFromPEM(privateKeyPEM string) (*rsa.PrivateKey, error)
-	Sha256(value string) string
+
+	Argon2Hex(plain, salt []byte, extra ...KdfConfig) (string, error)
+	CompareHashHex(aHex, bHex string) bool
+
+	EncryptAESGCMHex(plainText, keyHex, nonceHex string) (string, error)
+	DecryptAESGCMHex(cipherHex, keyHex, nonceHex string) (string, error)
+
+	EncryptChaCha20Hex(plainText, keyHex, nonceHex string) (string, error)
+	DecryptChaCha20Hex(cipherHex, keyHex, nonceHex string) (string, error)
+
+	GenerateRsaKeyPair(size int) (privPEM, pubPEM string, err error)
+	EncryptRsaOAEPB64(plainText, publicKeyPEM string) (string, error)
+	DecryptRsaOAEPB64(cipherB64, privateKeyPEM string) (string, error)
 }

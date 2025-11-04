@@ -3,50 +3,76 @@ package cryptus
 import (
 	"crypto/cipher"
 	"encoding/hex"
+	"errors"
 	"fmt"
-	"strings"
 
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-func (c *cryptus) EncryptChacha20(plainText, password, nonceHex string) (string, error) {
-	salt, err := hex.DecodeString(nonceHex)
-	if err != nil || len(salt) != chacha20poly1305.NonceSize {
-		return "", fmt.Errorf("expected nonce length %d but got length %d", chacha20poly1305.NonceSize, len(salt))
+func NewChacha20Poly1305Key(key []byte) (cipher.AEAD, error) {
+	if len(key) != chacha20poly1305.KeySize {
+		return nil, fmt.Errorf("ChaCha20-Poly1305 key must be %d bytes; got %d", chacha20poly1305.KeySize, len(key))
 	}
-	cipher, err := c.getChacha20Cipher(password)
-	if err != nil {
-		return "", err
-	}
-	ciphertextBytes := cipher.Seal(nil, salt, []byte(plainText), nil)
-	return hex.EncodeToString(ciphertextBytes), nil
+	return chacha20poly1305.New(key)
 }
 
-func (c *cryptus) DecryptChacha20(cipherText, password, nonceHex string) (string, error) {
-	salt, err := hex.DecodeString(nonceHex)
-	if err != nil || len(salt) != chacha20poly1305.NonceSize {
-		return "", fmt.Errorf("expected nonce length %d but got length %d", chacha20poly1305.NonceSize, len(salt))
+func (c *cryptus) EncryptChaCha20Hex(plainText, keyHex, nonceHex string) (string, error) {
+	key, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return "", fmt.Errorf("invalid key hex: %w", err)
 	}
-	cipher, err := c.getChacha20Cipher(password)
+	if len(key) != chacha20poly1305.KeySize {
+		return "", fmt.Errorf("ChaCha20-Poly1305 key must be %d bytes", chacha20poly1305.KeySize)
+	}
+	nonce, err := hex.DecodeString(nonceHex)
+	if err != nil {
+		return "", fmt.Errorf("invalid nonce hex: %w", err)
+	}
+	if len(nonce) != chacha20poly1305.NonceSize {
+		return "", fmt.Errorf("nonce must be %d bytes", chacha20poly1305.NonceSize)
+	}
+	aead, err := c.getChacha20Cipher(key)
 	if err != nil {
 		return "", err
 	}
-	cipherBytes, err := hex.DecodeString(cipherText)
-	if err != nil {
-		return "", err
-	}
-	plainText, err := cipher.Open(nil, salt, cipherBytes, nil)
-	if err != nil {
-		return "", err
-	}
-	return string(plainText), nil
+	ct := aead.Seal(nil, nonce, []byte(plainText), nil)
+	return hex.EncodeToString(ct), nil
 }
 
-func (c *cryptus) getChacha20Cipher(password string) (cipher.AEAD, error) {
-	key := []byte(password)
-	cipher, err := chacha20poly1305.New(key)
-	if err != nil && strings.ContainsAny(err.Error(), "bad key") {
-		return nil, fmt.Errorf("expected key size length %d but got %d", chacha20poly1305.KeySize, len(key))
+func (c *cryptus) DecryptChaCha20Hex(cipherHex, keyHex, nonceHex string) (string, error) {
+	key, err := hex.DecodeString(keyHex)
+	if err != nil {
+		return "", fmt.Errorf("invalid key hex: %w", err)
 	}
-	return cipher, nil
+	if len(key) != chacha20poly1305.KeySize {
+		return "", fmt.Errorf("ChaCha20-Poly1305 key must be %d bytes", chacha20poly1305.KeySize)
+	}
+	nonce, err := hex.DecodeString(nonceHex)
+	if err != nil {
+		return "", fmt.Errorf("invalid nonce hex: %w", err)
+	}
+	if len(nonce) != chacha20poly1305.NonceSize {
+		return "", fmt.Errorf("nonce must be %d bytes", chacha20poly1305.NonceSize)
+	}
+	aead, err := c.getChacha20Cipher(key)
+	if err != nil {
+		return "", err
+	}
+	raw, err := hex.DecodeString(cipherHex)
+	if err != nil {
+		return "", fmt.Errorf("invalid cipher hex: %w", err)
+	}
+	pt, err := aead.Open(nil, nonce, raw, nil)
+	if err != nil {
+		return "", err
+	}
+	return string(pt), nil
+}
+
+func (c *cryptus) getChacha20Cipher(key []byte) (cipher.AEAD, error) {
+	aead, err := chacha20poly1305.New(key)
+	if err != nil {
+		return nil, errors.New("failed to init chacha20-poly1305")
+	}
+	return aead, nil
 }

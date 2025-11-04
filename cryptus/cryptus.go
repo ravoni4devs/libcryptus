@@ -2,60 +2,51 @@ package cryptus
 
 import (
 	crand "crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"math/rand"
-	"strconv"
-	"time"
+	"io"
 )
 
 type cryptus struct{}
 
-func New() Cryptus {
-	return &cryptus{}
-}
+func New() Cryptus { return &cryptus{} }
 
 func (c *cryptus) RandomSixDigits() string {
-	rand.New(rand.NewSource(time.Now().UnixNano()))
-	min := 100000
-	max := 999999
-	code := min + rand.Intn(max-min)
-	return strconv.Itoa(code)
-}
-
-func (c *cryptus) GenerateNonceHex(size int) string {
-	nonceBytes := make([]byte, size)
-	_, err := crand.Read(nonceBytes)
-	if err != nil {
-		return ""
+	var b [4]byte
+	if _, err := io.ReadFull(crand.Reader, b[:]); err != nil {
+		// fallback
+		return "000000"
 	}
-	return hex.EncodeToString(nonceBytes)
+	// 0..999999
+	n := (uint32(b[0])<<24 | uint32(b[1])<<16 | uint32(b[2])<<8 | uint32(b[3])) % 1000000
+	return fmt.Sprintf("%06d", n)
 }
 
-func (c *cryptus) GenerateNonce(size int) ([]byte, error) {
-	nonceBytes := make([]byte, size)
-	_, err := crand.Read(nonceBytes)
-	if err != nil {
-		return nonceBytes, errors.New("could not generate nonce")
+func (c *cryptus) GenerateNonceBytes(n int) ([]byte, error) {
+	if n <= 0 {
+		return nil, errors.New("nonce size must be > 0")
 	}
-
-	res := base64.URLEncoding.EncodeToString(nonceBytes)
-	return []byte(res), nil
-}
-
-func (c *cryptus) GenerateNonceString(size int) string {
-	b, err := c.GenerateNonce(size)
-	if err != nil {
-		return ""
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(crand.Reader, buf); err != nil {
+		return nil, err
 	}
-	return string(b)
+	return buf, nil
 }
 
-func (c *cryptus) Sha256(value string) string {
-	h := sha256.New()
-	h.Write([]byte(value))
-	return fmt.Sprintf("%x", h.Sum(nil))
+func (c *cryptus) GenerateNonceHex(n int) (string, error) {
+	b, err := c.GenerateNonceBytes(n)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+func (c *cryptus) GenerateNonceB64URL(n int) (string, error) {
+	b, err := c.GenerateNonceBytes(n)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
