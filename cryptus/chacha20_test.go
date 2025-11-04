@@ -1,33 +1,28 @@
 package cryptus
 
-import (
-	"encoding/hex"
-	"fmt"
-	"testing"
-)
+import "testing"
 
-func TestEncryptChacha20(t *testing.T) {
-	crypto := New()
-	password := crypto.Argon2("strongpass", "123456", NewKdfConfig(
-		WithLength(32),
-	))
-	plainText := "my secret content"
-	nonceHex := hex.EncodeToString([]byte("12345678910-"))
-	cipherText, err := crypto.EncryptChacha20(plainText, password, nonceHex)
-	if err != nil {
-		fmt.Println(err)
-	}
-	assertEqual(t, cipherText, "a28a3960a612ed83d207ac59c67a2c51948992334263533d32997b895cb120be88")
-}
+func TestChaCha20_EncryptDecrypt(t *testing.T) {
+	c := New()
 
-func TestDecryptChacha20(t *testing.T) {
-	cipherText := "a28a3960a612ed83d207ac59c67a2c51948992334263533d32997b895cb120be88"
-	password := "cea63ce08c5fcf2a33a0311f1e68c048" // argon2 strongpass 123456
-	nonceHex := hex.EncodeToString([]byte("12345678910-"))
-	crypto := New()
-	plainText, err := crypto.DecryptChacha20(cipherText, password, nonceHex)
+	// ChaCha20-Poly1305 key 32 bytes in HEX
+	keyHex := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	// Nonce 12 bytes in HEX
+	nonceHex := "0a0b0c0d0e0f101112131415"
+
+	plain := "hello, chacha20-poly1305!"
+
+	ctHex, err := c.EncryptChaCha20Hex(plain, keyHex, nonceHex)
 	if err != nil {
-		fmt.Println(err)
+		t.Fatalf("EncryptChaCha20Hex error: %v", err)
 	}
-	assertEqual(t, plainText, "my secret content")
+
+	pt, err := c.DecryptChaCha20Hex(ctHex, keyHex, nonceHex)
+	if err != nil {
+		t.Fatalf("DecryptChaCha20Hex error: %v", err)
+	}
+
+	if pt != plain {
+		t.Fatalf("decrypted text mismatch: got %q, want %q", pt, plain)
+	}
 }

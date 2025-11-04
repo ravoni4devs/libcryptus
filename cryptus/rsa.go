@@ -3,90 +3,91 @@ package cryptus
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 )
 
 func (c *cryptus) GenerateRsaKeyPair(size int) (string, string, error) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, size)
+	priv, err := rsa.GenerateKey(rand.Reader, size)
 	if err != nil {
 		return "", "", err
 	}
-	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	privateKeyBytes, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
 		return "", "", err
 	}
-	publicKey := &privateKey.PublicKey
-	privKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PRIVATE KEY",
-		Bytes: privateKeyBytes,
-	})
-
-	asn1Bytes, err := x509.MarshalPKIXPublicKey(publicKey)
+	pub := &priv.PublicKey
+	asn1Bytes, err := x509.MarshalPKIXPublicKey(pub)
 	if err != nil {
 		return "", "", err
 	}
-
-	pubKeyPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "PUBLIC KEY",
-		Bytes: asn1Bytes,
-	})
-	return string(privKeyPEM), string(pubKeyPEM), nil
+	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privateKeyBytes})
+	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: asn1Bytes})
+	return string(privPEM), string(pubPEM), nil
 }
 
-func (c *cryptus) EncryptRsa(plainText, publicKey string) (string, error) {
-	pubKey, err := c.ParseRSAPublicKeyFromPEM(publicKey)
+func (c *cryptus) EncryptRsaOAEPB64(plainText, publicKeyPEM string) (string, error) {
+	pub, err := c.ParseRSAPublicKeyFromPEM(publicKeyPEM)
 	if err != nil {
 		return "", err
 	}
-	cipherText, err := rsa.EncryptPKCS1v15(rand.Reader, pubKey, []byte(plainText))
+	label := []byte("") // opcional
+	ct, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, pub, []byte(plainText), label)
 	if err != nil {
 		return "", err
 	}
-	return string(cipherText), nil
+	return base64.RawStdEncoding.EncodeToString(ct), nil
 }
 
-func (c *cryptus) DecryptRsa(cipherText, privateKey string) (string, error) {
-	privKey, err := c.ParseRSAPrivateKeyFromPEM(privateKey)
+func (c *cryptus) DecryptRsaOAEPB64(cipherB64, privateKeyPEM string) (string, error) {
+	priv, err := c.ParseRSAPrivateKeyFromPEM(privateKeyPEM)
 	if err != nil {
 		return "", err
 	}
-	plainText, err := rsa.DecryptPKCS1v15(rand.Reader, privKey, []byte(cipherText))
+	raw, err := base64.RawStdEncoding.DecodeString(cipherB64)
+	if err != nil {
+		return "", fmt.Errorf("invalid base64: %w", err)
+	}
+	label := []byte("")
+	pt, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, priv, raw, label)
 	if err != nil {
 		return "", err
 	}
-	return string(plainText), nil
+	return string(pt), nil
 }
 
 func (c *cryptus) ParseRSAPublicKeyFromPEM(publicKeyPEM string) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode([]byte(publicKeyPEM))
 	if block == nil {
-		return nil, fmt.Errorf("failed to parse PEM block containing the key")
+		return nil, errors.New("failed to parse PEM block (public)")
 	}
-	parsedKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	parsed, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse PKIX public key: %v", err)
+		return nil, fmt.Errorf("parse PKIX public key: %w", err)
 	}
-	publicKey, ok := parsedKey.(*rsa.PublicKey)
+	pub, ok := parsed.(*rsa.PublicKey)
 	if !ok {
-		return nil, fmt.Errorf("not an RSA public key")
+		return nil, errors.New("not an RSA public key")
 	}
-	return publicKey, nil
+	return pub, nil
 }
 
 func (c *cryptus) ParseRSAPrivateKeyFromPEM(privateKeyPEM string) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode([]byte(privateKeyPEM))
 	if block == nil {
-		return nil, fmt.Errorf("failed to parse PEM block containing the key")
+		return nil, errors.New("failed to parse PEM block (private)")
 	}
-	privateKey, err := x509.ParsePKCS8PrivateKey(block.Bytes)
+	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse PKCS8 private key: %v", err)
+		return nil, fmt.Errorf("parse PKCS8 private key: %w", err)
 	}
-	rsaPrivateKey, ok := privateKey.(*rsa.PrivateKey)
+	priv, ok := key.(*rsa.PrivateKey)
 	if !ok {
-		return nil, fmt.Errorf("not an RSA private key")
+		return nil, errors.New("not an RSA private key")
 	}
-	return rsaPrivateKey, nil
+	return priv, nil
 }

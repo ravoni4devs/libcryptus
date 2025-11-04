@@ -9,12 +9,19 @@ import (
 
 func (c *cryptus) Pbkdf2(plainText, salt string, extra ...KdfConfig) string {
 	iter := 10000
-	length := 16
+	length := 16 // bytes
+
 	if len(extra) > 0 {
 		opts := extra[0]
-		iter = int(opts.Iterations())
-		length = int(opts.Length())
+
+		if v := int(opts.Iterations()); v > 0 {
+			iter = v
+		}
+		if v := int(opts.Length()); v > 0 {
+			length = v
+		}
 	}
-	hash := pbkdf2.Key([]byte(plainText), []byte(salt), iter, length, sha256.New)
-	return hex.EncodeToString(hash)
+
+	key := pbkdf2.Key([]byte(plainText), []byte(salt), iter, length, sha256.New)
+	return hex.EncodeToString(key)
 }

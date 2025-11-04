@@ -9,10 +9,12 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/urfave/cli/v3"
 	"golang.org/x/term"
@@ -20,29 +22,33 @@ import (
 	lib "github.com/ravoni4devs/libcryptus/cryptus"
 )
 
-const magic = "CRYPTUS\n"
+const (
+	magic        = "CRYPTUS\n"
+	AlgoAES      = "aes"
+	AlgoChaCha20 = "chacha20"
+	KdfArgon2id  = "argon2id"
+	KdfPBKDF2    = "pbkdf2"
+)
 
 func main() {
+	flags := []cli.Flag{
+		&cli.StringFlag{Name: "input", Aliases: []string{"i", "string", "text", "file"}, Required: true},
+		&cli.StringFlag{Name: "nonce", Aliases: []string{"salt"}},
+		&cli.StringFlag{Name: "out", Aliases: []string{"output", "o"}},
+		&cli.IntFlag{Name: "chunk", Value: 1 << 20},
+		&cli.StringFlag{Name: "algo", Aliases: []string{"a"}, Value: AlgoAES, Usage: "cipher algorithm: aes|chacha20"},
+		&cli.StringFlag{Name: "kdf", Aliases: []string{"k"}, Value: KdfArgon2id, Usage: "key derivation function: argon2id|pbkdf2"},
+	}
 	cmds := []*cli.Command{
 		{
-			Name: "encrypt",
-			Flags: []cli.Flag{
-				&cli.StringFlag{Name: "input", Aliases: []string{"i", "string", "word", "file"}, Required: true},
-				&cli.StringFlag{Name: "nonce", Aliases: []string{"salt"}},
-				&cli.StringFlag{Name: "out"},
-				&cli.IntFlag{Name: "chunk", Value: 1 << 20},
-			},
-			Action: func(ctx context.Context, cmd *cli.Command) error { return runApp(ctx, cmd) },
+			Name:   "encrypt",
+			Flags:  flags,
+			Action: func(ctx context.Context, cmd *cli.Command) error { return runApp(cmd) },
 		},
 		{
-			Name: "decrypt",
-			Flags: []cli.Flag{
-				&cli.StringFlag{Name: "input", Aliases: []string{"i", "string", "word", "file"}, Required: true},
-				&cli.StringFlag{Name: "nonce", Aliases: []string{"salt"}},
-				&cli.StringFlag{Name: "out"},
-				&cli.IntFlag{Name: "chunk", Value: 1 << 20},
-			},
-			Action: func(ctx context.Context, cmd *cli.Command) error { return runApp(ctx, cmd) },
+			Name:   "decrypt",
+			Flags:  flags,
+			Action: func(ctx context.Context, cmd *cli.Command) error { return runApp(cmd) },
 		},
 	}
 	root := &cli.Command{Commands: cmds}
@@ -52,74 +58,133 @@ func main() {
 	}
 }
 
-func runApp(ctx context.Context, cmd *cli.Command) error {
+func runApp(cmd *cli.Command) error {
 	name := cmd.Name
 	input := cmd.String("input")
 	nonceArg := cmd.String("nonce")
 	out := cmd.String("out")
 	chunk := cmd.Int("chunk")
+	algo := strings.ToLower(cmd.String("algo"))
+	kdf := strings.ToLower(cmd.String("kdf"))
+
 	if chunk <= 0 {
 		return fmt.Errorf("invalid chunk size")
 	}
+	if err := validateAlgo(algo); err != nil {
+		return err
+	}
+	if err := validateKDF(kdf); err != nil {
+		return err
+	}
+
 	isFile := fileExists(input)
 	isDecrypt := name == "decrypt"
 
 	if isFile {
-		return runFile(name, input, out, nonceArg, chunk, isDecrypt)
+		return runFile(input, out, nonceArg, chunk, isDecrypt, algo, kdf)
 	}
-	return runString(name, input, nonceArg, isDecrypt)
+	return runString(input, nonceArg, isDecrypt, algo, kdf)
 }
 
-func runString(mode, text, nonceArg string, isDecrypt bool) error {
+// ---------------- Validation ----------------
+
+func validateAlgo(algo string) error {
+	switch algo {
+	case AlgoAES, AlgoChaCha20:
+		return nil
+	default:
+		return fmt.Errorf("invalid -algo: %s (use %s|%s)", algo, AlgoAES, AlgoChaCha20)
+	}
+}
+
+func validateKDF(kdf string) error {
+	switch kdf {
+	case KdfArgon2id, KdfPBKDF2:
+		return nil
+	default:
+		return fmt.Errorf("invalid -kdf: %s (use %s|%s)", kdf, KdfArgon2id, KdfPBKDF2)
+	}
+}
+
+// ---------------- String Mode ----------------
+
+func runString(text, nonceArg string, isDecrypt bool, algo, kdf string) error {
 	nonceStr, autoNonce := resolveNonceForString(nonceArg, isDecrypt)
 	baseNonce, kdfSalt := deriveBaseNonceAndSalt(nonceStr)
 	password := promptPassword()
 	c := lib.New()
 	nonceHex := hex.EncodeToString(baseNonce)
 
+	keyHex, err := deriveKeyHex(c, kdf, password, kdfSalt)
+	if err != nil {
+		return err
+	}
+
 	if isDecrypt {
 		if autoNonce {
 			return fmt.Errorf("nonce is required for string decryption")
 		}
-		plain, err := c.DecryptAes(text, c.Pbkdf2(password, kdfSalt), nonceHex)
-		if err != nil {
-			return err
+		switch algo {
+		case AlgoAES:
+			plain, err := c.DecryptAESGCMHex(text, keyHex, nonceHex)
+			if err != nil {
+				return err
+			}
+			fmt.Println(plain)
+		case AlgoChaCha20:
+			plain, err := c.DecryptChaCha20Hex(text, keyHex, nonceHex)
+			if err != nil {
+				return err
+			}
+			fmt.Println(plain)
 		}
-		fmt.Println(plain)
 		return nil
 	}
 
-	ct, err := c.EncryptAes(text, c.Pbkdf2(password, kdfSalt), nonceHex)
-	if err != nil {
-		return err
+	switch algo {
+	case AlgoAES:
+		ct, err := c.EncryptAESGCMHex(text, keyHex, nonceHex)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Encrypted:", ct)
+	case AlgoChaCha20:
+		ct, err := c.EncryptChaCha20Hex(text, keyHex, nonceHex)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Encrypted:", ct)
 	}
-	fmt.Println("Encrypted:", ct)
+
 	if autoNonce {
 		fmt.Println("Nonce:", nonceHex)
 	}
 	return nil
 }
 
-func runFile(mode, inPath, outPath, nonceArg string, chunk int, isDecrypt bool) error {
+// ---------------- File Mode ----------------
+
+func runFile(inPath, outPath, nonceArg string, chunk int, isDecrypt bool, algo, kdf string) error {
 	nonceStr, autoNonce := resolveNonceForFile(inPath, nonceArg, isDecrypt)
 	baseNonce, kdfSalt := deriveBaseNonceAndSalt(nonceStr)
 	password := promptPassword()
 
-	keyHex := lib.New().Pbkdf2(password, kdfSalt)
+	c := lib.New()
+	keyHex, err := deriveKeyHex(c, kdf, password, kdfSalt)
+	if err != nil {
+		return err
+	}
 	key, err := hex.DecodeString(keyHex)
 	if err != nil {
 		return fmt.Errorf("derived key is not valid hex")
 	}
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return err
-	}
-	aead, err := cipher.NewGCM(block)
+
+	aead, err := buildAEAD(algo, key)
 	if err != nil {
 		return err
 	}
 	if aead.NonceSize() != 12 {
-		return fmt.Errorf("unexpected AEAD nonce size")
+		return fmt.Errorf("unexpected AEAD nonce size (got %d)", aead.NonceSize())
 	}
 
 	in, err := os.Open(inPath)
@@ -160,6 +225,48 @@ func runFile(mode, inPath, outPath, nonceArg string, chunk int, isDecrypt bool) 
 	fmt.Println("Encryption successful:", dest)
 	return nil
 }
+
+// ---------------- KDF & AEAD ----------------
+
+func deriveKeyHex(c lib.Cryptus, kdf, password, saltStr string) (string, error) {
+	switch kdf {
+	case KdfPBKDF2:
+		length := 32 // AES-256 or ChaCha20
+		cfg := lib.NewKdfConfig(lib.WithIterations(100_000), lib.WithLength(length))
+		return c.Pbkdf2(password, saltStr, cfg), nil
+	case KdfArgon2id:
+		salt := []byte(saltStr)
+		cfg := lib.NewKdfConfig(
+			lib.WithIterations(3),
+			lib.WithMemory(1024*64),
+			lib.WithThreads(1),
+			lib.WithLength(32),
+		)
+		return c.Argon2Hex([]byte(password), salt, cfg)
+	default:
+		return "", errors.New("unknown kdf")
+	}
+}
+
+func buildAEAD(algo string, key []byte) (cipher.AEAD, error) {
+	switch algo {
+	case AlgoAES:
+		if l := len(key); l != 16 && l != 24 && l != 32 {
+			return nil, fmt.Errorf("AES key must be 16, 24, or 32 bytes; got %d", len(key))
+		}
+		block, err := aes.NewCipher(key)
+		if err != nil {
+			return nil, err
+		}
+		return cipher.NewGCM(block)
+	case AlgoChaCha20:
+		return lib.NewChacha20Poly1305Key(key)
+	default:
+		return nil, fmt.Errorf("unsupported algo: %s", algo)
+	}
+}
+
+// ---------------- Utils ----------------
 
 func resolveNonceForString(nonceArg string, isDecrypt bool) (string, bool) {
 	if nonceArg != "" {
@@ -215,9 +322,7 @@ func noncePathForOperation(inPath string, decrypt bool) string {
 	return noncePathOriginal(inPath)
 }
 
-func noncePathOriginal(inPath string) string {
-	return inPath + ".nonce"
-}
+func noncePathOriginal(inPath string) string { return inPath + ".nonce" }
 
 func deriveBaseNonceAndSalt(nonceInput string) ([]byte, string) {
 	b, err := hex.DecodeString(nonceInput)
@@ -250,6 +355,7 @@ func promptPassword() string {
 	return string(pw)
 }
 
+// ---------- Streaming ----------
 func encryptStream(in *os.File, outPath string, aead cipher.AEAD, baseNonce []byte, chunkSize int) error {
 	dir := filepath.Dir(outPath)
 	tmp, err := os.CreateTemp(dir, ".tmp-*")
@@ -349,6 +455,7 @@ func decryptStream(in *os.File, outPath string, aead cipher.AEAD, baseNonce []by
 	return os.Rename(tmp.Name(), outPath)
 }
 
+// ---------- Low-level utils ----------
 func deriveChunkNonce(base []byte, index uint64, size int) []byte {
 	var idx [8]byte
 	binary.BigEndian.PutUint64(idx[:], index)
@@ -411,4 +518,3 @@ func fail(msg string) {
 	fmt.Fprintln(os.Stderr, "Error:", msg)
 	os.Exit(1)
 }
-

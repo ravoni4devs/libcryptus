@@ -1,68 +1,49 @@
 package cryptus
 
 type KdfConfig struct {
-	length     int64
-	iterations int64
-	memory     int64
-	threads    int64
+	length     int // bytes do hash (default 32)
+	iterations int // t (default 3)
+	memory     int // KiB (default 64 MiB)
+	threads    int // p (default 2)
 }
 
 type KdfOption func(*KdfConfig)
 
 func NewKdfConfig(options ...KdfOption) KdfConfig {
-	config := KdfConfig{}
+	cfg := KdfConfig{}
 	for _, opt := range options {
-		opt(&config)
+		opt(&cfg)
 	}
-	return config
+	return cfg
 }
 
-func WithLength(val int64) KdfOption {
-	return func(c *KdfConfig) {
-		c.length = val
-	}
-}
+func WithLength(v int) KdfOption     { return func(c *KdfConfig) { c.length = v } }
+func WithIterations(v int) KdfOption { return func(c *KdfConfig) { c.iterations = v } }
+func WithMemory(v int) KdfOption     { return func(c *KdfConfig) { c.memory = v } }
+func WithThreads(v int) KdfOption    { return func(c *KdfConfig) { c.threads = v } }
 
-func WithIterations(val int64) KdfOption {
-	return func(c *KdfConfig) {
-		c.iterations = val
-	}
-}
-
-func WithMemory(val int64) KdfOption {
-	return func(c *KdfConfig) {
-		c.memory = val
-	}
-}
-
-func WithThreads(val int64) KdfOption {
-	return func(c *KdfConfig) {
-		c.threads = val
-	}
-}
-
-func (k KdfConfig) Length() int64 {
+func (k KdfConfig) Length() int {
 	if k.length > 0 {
 		return k.length
 	}
-	return 16
+	return 32
 }
 
-func (k KdfConfig) Iterations() int64 {
+func (k KdfConfig) Iterations() int {
 	if k.iterations > 0 {
 		return k.iterations
 	}
 	return 3
 }
 
-func (k KdfConfig) Memory() int64 {
+func (k KdfConfig) Memory() int {
 	if k.memory > 0 {
 		return k.memory
 	}
 	return 1024 * 64
 }
 
-func (k KdfConfig) Threads() int64 {
+func (k KdfConfig) Threads() int {
 	if k.threads > 0 {
 		return k.threads
 	}
