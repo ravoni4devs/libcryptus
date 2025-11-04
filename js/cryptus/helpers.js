@@ -1,151 +1,105 @@
-const getCrypto = () => {
-  if (typeof window !== 'undefined' && window.crypto) {
-    return window.crypto;
-  }
-  if (typeof global !== 'undefined' && global.crypto) {
-    return global.crypto;
-  }
-  return crypto;
-};
+// minimal, framework-agnostic utilities
 
-const arrayBufferToBase64 = (buf) => {
-  const byteArray = new Uint8Array(buf);
-  let byteString = '';
-  for (let i = 0; i < byteArray.byteLength; i++) {
-    byteString += String.fromCharCode(byteArray[i]);
+function getCrypto() {
+  if (typeof globalThis !== "undefined" && globalThis.crypto && globalThis.crypto.subtle) {
+    return globalThis.crypto;
   }
-  return btoa(byteString);
-};
+  try {
+    // Node.js >= 16
+    const { webcrypto } = require("crypto");
+    if (webcrypto && webcrypto.subtle) return webcrypto;
+  } catch (_) {}
+  throw new Error("WebCrypto is not available in this environment");
+}
 
-const base64ToArrayBuffer = (b64str) => {
-  const byteStr = atob(b64str);
-  const bytes = new Uint8Array(byteStr.length);
-  for (let i = 0; i < byteStr.length; i++) {
-    bytes[i] = byteStr.charCodeAt(i);
-  }
-  return bytes.buffer;
-};
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  return typeof btoa === "function" ? btoa(s) : Buffer.from(s, "binary").toString("base64");
+}
 
-const arrayBufferToText = (buf) => {
+function base64ToArrayBuffer(b64) {
+  const bin = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
+}
+
+function b64urlFromBytes(bytes) {
+  let s = arrayBufferToBase64(bytes);
+  return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function bytesFromB64url(s) {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = s.length % 4 ? 4 - (s.length % 4) : 0;
+  return base64ToArrayBuffer(s + "=".repeat(pad));
+}
+
+function arrayBufferToText(buf) {
   return new TextDecoder().decode(buf);
-};
+}
 
-const textToArrayBuffer = (str) => {
+function textToArrayBuffer(str) {
   return new TextEncoder().encode(str);
-};
+}
 
-const binaryToPem = (binaryData, label) => {
-  const base64Cert = arrayBufferToBase64(binaryData);
-  let pemCert = '-----BEGIN ' + label + '-----\r\n';
-  let nextIndex = 0;
-  while (nextIndex < base64Cert.length) {
-    if (nextIndex + 64 <= base64Cert.length) {
-      pemCert += base64Cert.substring(nextIndex, nextIndex + 64) + '\r\n';
-    } else {
-      pemCert += base64Cert.substring(nextIndex) + '\r\n';
-    }
-    nextIndex += 64;
+function hexToArrayBuffer(hex) {
+  if (!hex || hex.length % 2 !== 0) throw new Error("invalid hex");
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
-  pemCert += '-----END ' + label + '-----\r\n';
-  return pemCert;
-};
+  return out;
+}
 
-const pemToBinary = (pem = '') => {
-  const lines = pem.split('\n');
-  let encoded = '';
-  for (let i = 0; i < lines.length; i++) {
-    if (
-      lines[i].trim().length > 0 &&
-      lines[i].indexOf('-BEGIN') < 0 &&
-      lines[i].indexOf('-END') < 0
-    ) {
-      encoded += lines[i].trim();
-    }
-  }
-  return base64ToArrayBuffer(encoded);
-};
+function arrayBufferToHex(buf) {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, "0");
+  return s;
+}
 
-const hexToArrayBuffer = (hexString) => {
-  if (hexString.length % 2 !== 0) {
-    throw new Error('Invalid hexString.');
-  }
-  const arrayBuffer = new Uint8Array(hexString.length / 2);
-  for (let i = 0; i < hexString.length; i += 2) {
-    const byteValue = parseInt(hexString.substring(i, i + 2), 16);
-    if (isNaN(byteValue)) {
-      throw new Error('Byte value is not a number.');
-    }
-    arrayBuffer[i / 2] = byteValue;
-  }
-  return arrayBuffer;
-};
+function binaryToPem(binaryData, label) {
+  const b64 = arrayBufferToBase64(binaryData);
+  let pem = "-----BEGIN " + label + "-----\n";
+  for (let i = 0; i < b64.length; i += 64) pem += b64.slice(i, i + 64) + "\n";
+  pem += "-----END " + label + "-----\n";
+  return pem;
+}
 
-const arrayBufferToHex = (b) => {
-  if (!b) {
-    throw new Error('No bytes to convert to Hex');
-  }
-  const bytes = new Uint8Array(b);
-  const hexBytes = [];
-  for (let i = 0; i < bytes.length; ++i) {
-    let byteString = bytes[i].toString(16);
-    if (byteString.length < 2) {
-      byteString = `0${byteString}`;
-    }
-    hexBytes.push(byteString);
-  }
-  return hexBytes.join('');
-};
+function pemToBinary(pem) {
+  const b64 = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  return base64ToArrayBuffer(b64);
+}
 
-const strToBase64 = (str) => {
-  return btoa(str);
-};
+function strToHex(str) {
+  const bytes = new TextEncoder().encode(str);
+  let s = "";
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, "0");
+  return s;
+}
 
-const base64ToStr = (b64) => {
-  return atob(b64);
-};
+function randomBytes(n) {
+  const c = getCrypto();
+  const b = new Uint8Array(n);
+  c.getRandomValues(b);
+  return b;
+}
 
-const strToUtf16Bytes = (str) => {
-  const bytes = [];
-  for (let ii = 0; ii < str.length; ii++) {
-    const code = str.charCodeAt(ii);
-    bytes.push(code & 255, code >> 8);
-  }
-  return bytes;
-};
-
-const strToHex = (str) => {
-  const stringBytes = new TextEncoder().encode(str);
-  return Array.from(stringBytes)
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
-};
-
-const randomIv = (size) => {
-  const bytes = crypto.getRandomValues(new Uint8Array(size / 2));
-  const hexBytes = [];
-  for (let i = 0; i < bytes.length; ++i) {
-    let byteString = bytes[i].toString(16);
-    if (byteString.length < 2) {
-      byteString = `0${byteString}`;
-    }
-    hexBytes.push(byteString);
-  }
-  return hexBytes.join('');
-};
-
-export default {
+module.exports = {
+  getCrypto,
   arrayBufferToBase64,
   base64ToArrayBuffer,
+  b64urlFromBytes,
+  bytesFromB64url,
   arrayBufferToText,
   textToArrayBuffer,
-  binaryToPem,
-  pemToBinary,
   hexToArrayBuffer,
   arrayBufferToHex,
-  strToBase64,
-  base64ToStr,
-  strToUtf16Bytes,
+  binaryToPem,
+  pemToBinary,
   strToHex,
-  randomIv,
-  getCrypto,
+  randomBytes,
 };

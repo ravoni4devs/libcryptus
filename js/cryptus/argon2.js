@@ -1,29 +1,22 @@
-import helpers from './helpers';
+// Argon2id via argon2-browser (window.argon2). Returns hex.
+const helpers = require("./helpers");
 
-export default {
-  async deriveKey({
-    plainText = '',
-    salt = '',
-    length = 16,
-    iterations = 3,
-    memory = 65536,
-    threads = 2,
-  } = {}) {
-    if (typeof window === 'undefined' || !window.argon2) {
-      console.warn('Argon2 not available in Node.js environment');
-      return 'argon2_not_available_in_nodejs';
-    }
-    const { argon2 } = window;
-    const hash = await argon2.hash({
-      pass: plainText,
-      salt: helpers.textToArrayBuffer(salt),
-      type: argon2.ArgonType.Argon2id,
-      hashLen: length,
-      time: iterations,
-      mem: memory,
-      parallelism: threads,
-      version: 0x13,
-    });
-    return hash.hashHex;
-  },
-};
+async function argon2Hex(plainText, salt, lengthBytes = 32, iterations = 3, memoryKiB = 65536, threads = 1) {
+  if (typeof window === "undefined" || !window.argon2 || !window.argon2.hash) {
+    throw new Error("Argon2 is not available in this environment (expecting argon2-browser)");
+  }
+  const a2 = window.argon2;
+  const res = await a2.hash({
+    pass: plainText instanceof Uint8Array ? plainText : helpers.textToArrayBuffer(plainText),
+    salt: salt instanceof Uint8Array ? salt : helpers.textToArrayBuffer(salt),
+    type: a2.ArgonType.Argon2id,
+    hashLen: lengthBytes,
+    time: iterations,
+    mem: memoryKiB,
+    parallelism: threads,
+    version: 0x13,
+  });
+  return res.hashHex;
+}
+
+module.exports = { argon2Hex };

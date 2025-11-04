@@ -1,182 +1,87 @@
-import Aes from './aes';
-import pbkdf2 from './pbkdf2';
-import argon2 from './argon2';
-import Rsa from './rsa';
-import helpers from './helpers';
+const helpers = require("./helpers");
+const aes = require("./aes");
+const chacha = require("./chacha20");
+const { pbkdf2Hex } = require("./pbkdf2");
+const { argon2Hex } = require("./argon2");
+const rsa = require("./rsa");
 
-/**
- * Cryptus class provides cryptographic utilities for encryption, decryption, key derivation, and hashing.
- */
-export default class Cryptus {
-  constructor() {
-    this.aesCipher = new Aes();
-    this.rsaCipher = new Rsa();
+class Cryptus {
+  constructor() {}
+
+  async GenerateNonceBytes(n) {
+    return helpers.randomBytes(n);
+  }
+  async GenerateNonceHex(n) {
+    return helpers.arrayBufferToHex(helpers.randomBytes(n));
+  }
+  async GenerateNonceB64URL(n) {
+    return helpers.b64urlFromBytes(helpers.randomBytes(n));
   }
 
-  /**
-   * Gets the crypto instance (works in both browser and Node.js)
-   * @private
-   */
-  _getCrypto() {
-    return helpers.getCrypto()
+  // Hash helper
+  async Sha256Hex(value) {
+    const crypto = helpers.getCrypto();
+    const buf = await crypto.subtle.digest("SHA-256", helpers.textToArrayBuffer(value));
+    return helpers.arrayBufferToHex(buf);
   }
 
-  /**
-   * Generates a random nonce of the specified length.
-   * @param {Object} options - The options for nonce generation.
-   * @param {number} [options.length=16] - The length of the nonce in characters.
-   * @param {boolean} [options.hex=false] - Whether to convert the nonce to a hex string.
-   * @returns {string} A random nonce, optionally hex-encoded.
-   */
-  // generateNonce({ length = 16, hex = false } = {}) {
-  //   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  //   const charactersLength = characters.length;
-  //   const cryptoInstance = helpers._getCrypto();
-  //   const randomValues = cryptoInstance.getRandomValues(new Uint32Array(length));
-  //   let nonce = '';
-  //   for (let i = 0; i < length; i++) {
-  //     nonce += characters.charAt(randomValues[i] % charactersLength);
-  //   }
-  //   if (hex) {
-  //     return this.toHex(nonce);
-  //   }
-  //   return nonce;
-  // }
-  /**
-   * Generates a random nonce of the specified length in bytes.
-   * @param {Object} options - The options for nonce generation.
-   * @param {number} [options.length=12] - The length of the nonce in bytes (12 bytes recommended for AES-GCM).
-   * @param {boolean} [options.hex=true] - Whether to return the nonce as a hex string (default) or as a base64 string.
-   * @returns {string} A random nonce as hex string or base64 string.
-   */
-  generateNonce({ length = 12, hex = true } = {}) {
-    const cryptoInstance = this._getCrypto();
-    const randomBytes = cryptoInstance.getRandomValues(new Uint8Array(length));
-    if (hex) {
-      return helpers.arrayBufferToHex(randomBytes)
+  // Constant-time hex compare
+  CompareHashHex(aHex, bHex) {
+    if (typeof aHex !== "string" || typeof bHex !== "string") return false;
+    if (aHex.length !== bHex.length) {
+      // keep timing similar
+      let acc = 0;
+      for (let i = 0; i < aHex.length; i++) acc |= (aHex.charCodeAt(i) ^ 0);
+      return false && acc === 0;
     }
-    return helpers.arrayBufferToBase64(randomBytes)
+    let diff = 0;
+    for (let i = 0; i < aHex.length; i++) diff |= (aHex.charCodeAt(i) ^ bHex.charCodeAt(i));
+    return diff === 0;
   }
 
-  /**
-   * Converts a string to its hexadecimal representation.
-   * @param {string} val - The string to convert.
-   * @returns {string} The hexadecimal representation of the string.
-   */
-  toHex(val) {
-    return helpers.strToHex(val);
+  // PBKDF2 -> hex
+  async Pbkdf2(plainText, salt, opts = {}) {
+    const iterations = Number.isInteger(opts.iterations) ? opts.iterations : 10000;
+    const length = Number.isInteger(opts.length) ? opts.length : 16;
+    return pbkdf2Hex(plainText, salt, iterations, length);
   }
 
-  /**
-   * Encrypts the given data using the AES algorithm.
-   * @param {Object} args - The encryption arguments.
-   * @param {string} args.plainText - The plaintext to encrypt.
-   * @param {string} args.passwordHex - The password in hexadecimal format.
-   * @param {string} args.nonceHex - The nonce in hexadecimal format.
-   * @returns {Promise<string>} The encrypted data as a string.
-   */
-  async encryptAes(args) {
-    return await this.aesCipher.encrypt(args);
+  // Argon2id -> hex
+  async Argon2Hex(plainText, salt, opts = {}) {
+    const length = Number.isInteger(opts.length) ? opts.length : 32;
+    const iterations = Number.isInteger(opts.iterations) ? opts.iterations : 3;
+    const memory = Number.isInteger(opts.memory) ? opts.memory : 65536;
+    const threads = Number.isInteger(opts.threads) ? opts.threads : 1;
+    return argon2Hex(plainText, salt, length, iterations, memory, threads);
   }
 
-  /**
-   * Decrypts the given data using the AES algorithm.
-   * @param {Object} args - The decryption arguments.
-   * @param {string} args.cipherText - The encrypted text to decrypt.
-   * @param {string} args.passwordHex - The password in hexadecimal format.
-   * @param {string} args.nonceHex - The nonce in hexadecimal format.
-   * @returns {Promise<string>} The decrypted data as a string.
-   */
-  async decryptAes(args) {
-    return await this.aesCipher.decrypt(args);
+  // AES-GCM (hex IO)
+  async EncryptAESGCMHex(plainText, passwordHex, nonceHex) {
+    return aes.encryptAESGCMHex(plainText, passwordHex, nonceHex);
+  }
+  async DecryptAESGCMHex(cipherHex, passwordHex, nonceHex) {
+    return aes.decryptAESGCMHex(cipherHex, passwordHex, nonceHex);
   }
 
-  /**
-   * Derives a key using the PBKDF2 algorithm.
-   * @param {Object} args - The key derivation arguments.
-   * @param {string} args.plainText - The plaintext password.
-   * @param {string} args.salt - The salt value.
-   * @param {number} [args.iterations=10000] - The number of iterations.
-   * @param {number} [args.length=256] - The desired key length in bits.
-   * @returns {Promise<string>} The derived key as a hexadecimal string.
-   */
-  async pbkdf2(args) {
-    return await pbkdf2.deriveKey(args);
+  // ChaCha20-Poly1305 (hex IO) - requires libsodium
+  async EncryptChaCha20Hex(plainText, keyHex, nonceHex) {
+    return chacha.encryptChaCha20Hex(plainText, keyHex, nonceHex);
+  }
+  async DecryptChaCha20Hex(cipherHex, keyHex, nonceHex) {
+    return chacha.decryptChaCha20Hex(cipherHex, keyHex, nonceHex);
   }
 
-  /**
-   * Derives a hash password using the PBKDF2 algorithm.
-   * @param {Object} args - The key derivation arguments.
-   * @param {string} args.plainText - The plaintext password.
-   * @param {string} args.salt - The salt value.
-   * @param {number} [args.iterations=10000] - The number of iterations.
-   * @param {number} [args.length=256] - The desired hash length in bits.
-   * @returns {Promise<string>} The derived hash as a hexadecimal string.
-   */
-  async pbkdf2HashPassword(args) {
-    return await pbkdf2.deriveBits(args);
+  // RSA-OAEP (SHA-256) with Base64 URL-safe
+  async GenerateRsaKeyPair(size = 2048) {
+    const { privateKey, publicKey } = await rsa.generateRsaKeyPair(size);
+    return { privateKey, publicKey };
   }
-
-  /**
-   * Derives a key using the Argon2 algorithm.
-   * @param {Object} args - The key derivation arguments.
-   * @param {string} args.plainText - The plaintext password.
-   * @param {string} args.salt - The salt value.
-   * @param {number} [args.length=16] - The desired hash length in bytes.
-   * @param {number} [args.iterations=3] - The number of iterations.
-   * @param {number} [args.memory=65536] - Memory cost in KiB.
-   * @param {number} [args.threads=2] - Parallelism factor.
-   * @returns {Promise<string>} The derived key as a hexadecimal string.
-   */
-  async argon2(args) {
-    return await argon2.deriveKey(args);
+  async EncryptRsaOAEPB64(plainText, publicKeyPEM) {
+    return rsa.encryptRsaOAEPB64(plainText, publicKeyPEM);
   }
-
-  /**
-   * Generates an RSA key pair.
-   * @param {Object} [args] - The key generation arguments.
-   * @param {number} [args.size=2048] - The key size in bits.
-   * @returns {Promise<{ publicKey: { pem: string, base64: string }, privateKey: { pem: string, base64: string } }>} The generated RSA key pair.
-   */
-  async generateRsaKeyPair(args) {
-    return await this.rsaCipher.generateKeyPair(args);
-  }
-
-  /**
-   * Encrypts data using the RSA algorithm.
-   * @param {Object} args - The encryption arguments.
-   * @param {string} args.publicKey - The public key in PEM format.
-   * @param {string} args.plainText - The plaintext to encrypt.
-   * @param {number} [args.size=2048] - The key size in bits.
-   * @returns {Promise<string>} The encrypted data as a base64 string.
-   */
-  async encryptRsa(args) {
-    return await this.rsaCipher.encrypt(args);
-  }
-
-  /**
-   * Decrypts data using the RSA algorithm.
-   * @param {Object} args - The decryption arguments.
-   * @param {string} args.privateKey - The private key in PEM format.
-   * @param {string} args.cipherText - The encrypted text in base64 format.
-   * @param {number} [args.size=2048] - The key size in bits.
-   * @returns {Promise<string>} The decrypted data as a string.
-   */
-  async decryptRsa(args) {
-    return await this.rsaCipher.decrypt(args);
-  }
-
-  /**
-   * Computes the SHA-256 hash of the given value.
-   * @param {string} value - The value to hash.
-   * @returns {Promise<string>} The SHA-256 hash as a hexadecimal string.
-   */
-  async sha256(value) {
-    const cryptoInstance = this._getCrypto();
-    const encoded = new TextEncoder().encode(value);
-    const buffer = await cryptoInstance.subtle.digest('SHA-256', encoded);
-    const hashArray = Array.from(new Uint8Array(buffer));
-    const hashHex = hashArray.map((b) => ('00' + b.toString(16)).slice(-2)).join('');
-    return hashHex;
+  async DecryptRsaOAEPB64(cipherB64, privateKeyPEM) {
+    return rsa.decryptRsaOAEPB64(cipherB64, privateKeyPEM);
   }
 }
+
+module.exports = Cryptus;
